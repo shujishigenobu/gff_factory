@@ -17,12 +17,15 @@ class GffFeature
     @dbxref = Hash.new
     @synonyms = []
     @children = []
+    @gr = nil
     parse_gffline(gffline)
   end
   
   attr_reader :seqname, :source, :feature, :start, :end, :score, :strand, :frame, :attributes
   attr_reader :data, :dbxref, :synonyms
+  attr_reader :gr
   attr_accessor :children
+  alias_method :gff_line, :gr
 
   def length
     len = @end - @start + 1
@@ -133,6 +136,22 @@ end
 class Cds_part < GffFeature
 end
 
+class Rrna < GffFeature
+  def initialize(gffline)
+    super
+    @exons = []
+  end
+  attr_accessor :exons
+end
+
+class Lncrna < GffFeature
+  def initialize(gffline)
+    super
+    @exons = []
+  end
+  attr_accessor :exons
+end
+
 #====
 
 class GffGeneDb
@@ -148,11 +167,13 @@ class GffGeneDb
 
     genes = Hash.new
     mrnas = Hash.new
+    rrnas = Hash.new
+    lncrnas = Hash.new
     transcripts = Hash.new
 
     File.open(gff).each do |l|
       next if /^#/.match(l)
-      #puts l
+      puts l
       gr = Bio::GFF::GFF3::Record.new(l)
 
       if gr.feature == "gene"
@@ -174,6 +195,20 @@ class GffGeneDb
         cds_part = Cds_part.new(l)
         parental_transcript = transcripts[cds_part.parent]
         parental_transcript.cds_parts << cds_part
+
+      elsif gr.feature == "rRNA"
+        rna = Rrna.new(l)
+        rrnas[rna.id] = rna
+        transcripts[rna.id] = rna
+        parental_gene = genes[rna.parent]
+        parental_gene.children << rna
+
+      elsif gr.feature == "lnc_RNA"
+        rna = Lncrna.new(l)
+        lncrnas[rna.id] = rna
+        transcripts[rna.id] = rna
+        parental_gene = genes[rna.parent]
+        parental_gene.children << rna
       end
     end
     @genes = genes
